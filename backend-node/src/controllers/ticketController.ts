@@ -1,17 +1,12 @@
 import type { Request, Response } from 'express'
+import { bootstrapAi } from './aiController.js'
 import { Database } from '../database.js'
 import { fail, json, nowIso } from '../http.js'
-import type { Comment, Priority, Status, Ticket, TicketRow } from '../types.js'
+import { TICKET_SELECT, findTicket, mapTicket } from '../tickets.js'
+import type { Comment, Priority, Status, TicketRow } from '../types.js'
 
 const STATUSES: Status[] = ['aberto', 'em_andamento', 'resolvido']
 const PRIORITIES: Priority[] = ['baixa', 'media', 'alta']
-
-const TICKET_SELECT = `SELECT t.*,
-        requester.name AS requester_name,
-        assignee.name AS assignee_name
-     FROM tickets t
-     INNER JOIN users requester ON requester.id = t.requester_id
-     LEFT JOIN users assignee ON assignee.id = t.assignee_id`
 
 export class TicketController {
   static stats(_req: Request, res: Response): void {
@@ -50,7 +45,7 @@ export class TicketController {
   }
 
   static show(req: Request, res: Response): void {
-    const ticket = find(Number.parseInt(String(req.params.id), 10))
+    const ticket = findTicket(Number.parseInt(String(req.params.id), 10))
     if (ticket === null) {
       fail('Chamado não encontrado.', 404)
     }
@@ -113,12 +108,15 @@ export class TicketController {
         updated_at: now,
       })
 
-    const created = find(Number(result.lastInsertRowid))
+    const created = findTicket(Number(result.lastInsertRowid))
+    if (created !== null) {
+      bootstrapAi(created)
+    }
     json(res, { ticket: mapTicket(created) }, 201)
   }
 
   static update(req: Request, res: Response): void {
-    const ticket = find(Number.parseInt(String(req.params.id), 10))
+    const ticket = findTicket(Number.parseInt(String(req.params.id), 10))
     if (ticket === null) {
       fail('Chamado não encontrado.', 404)
     }
@@ -136,25 +134,30 @@ export class TicketController {
       fail('Status inválido.', 422, { status: 'Status desconhecido.' })
     }
 
+    const tookOver =
+      ticket.ai_outcome === 'triagem' && (status !== 'aberto' || assigneeId !== ticket.assignee_id)
+    const aiOutcome = tookOver ? 'escalado' : ticket.ai_outcome
+
     Database.sqlite()
       .prepare(
         `UPDATE tickets
-         SET status = @status, assignee_id = @assignee_id, updated_at = @updated_at
+         SET status = @status, assignee_id = @assignee_id, ai_outcome = @ai_outcome, updated_at = @updated_at
          WHERE id = @id`,
       )
       .run({
         status,
         assignee_id: assigneeId,
+        ai_outcome: aiOutcome,
         updated_at: nowIso(),
         id: ticket.id,
       })
 
-    const updated = find(Number(ticket.id))
+    const updated = findTicket(Number(ticket.id))
     json(res, { ticket: mapTicket(updated) })
   }
 
   static comment(req: Request, res: Response): void {
-    const ticket = find(Number.parseInt(String(req.params.id), 10))
+    const ticket = findTicket(Number.parseInt(String(req.params.id), 10))
     if (ticket === null) {
       fail('Chamado não encontrado.', 404)
     }
@@ -177,37 +180,5 @@ export class TicketController {
       })
 
     json(res, { ok: true }, 201)
-  }
-}
-
-function find(id: number): TicketRow | null {
-  if (!Number.isInteger(id) || id <= 0) {
-    return null
-  }
-
-  const row = Database.sqlite()
-    .prepare(`${TICKET_SELECT} WHERE t.id = @id`)
-    .get({ id }) as TicketRow | undefined
-
-  return row ?? null
-}
-
-function mapTicket(row: TicketRow | null): Ticket | Record<string, never> {
-  if (row === null) {
-    return {}
-  }
-
-  return {
-    id: Number(row.id),
-    title: row.title,
-    description: row.description,
-    status: row.status,
-    priority: row.priority,
-    requester: row.requester_name,
-    assignee: row.assignee_name,
-    requester_id: Number(row.requester_id),
-    assignee_id: row.assignee_id !== null ? Number(row.assignee_id) : null,
-    created_at: row.created_at,
-    updated_at: row.updated_at,
   }
 }

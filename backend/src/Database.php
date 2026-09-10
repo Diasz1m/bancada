@@ -30,6 +30,8 @@ final class Database
             self::migrate();
             self::seed();
         }
+
+        self::ensureAiSchema();
     }
 
     public static function pdo(): PDO
@@ -66,6 +68,7 @@ final class Database
                 description TEXT NOT NULL,
                 status TEXT NOT NULL CHECK(status IN ('aberto', 'em_andamento', 'resolvido')),
                 priority TEXT NOT NULL CHECK(priority IN ('baixa', 'media', 'alta')),
+                ai_outcome TEXT NOT NULL DEFAULT 'triagem' CHECK(ai_outcome IN ('triagem', 'resolvido_ia', 'escalado')),
                 requester_id INTEGER NOT NULL,
                 assignee_id INTEGER,
                 created_at TEXT NOT NULL,
@@ -83,9 +86,40 @@ final class Database
                 FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users(id)
             );
+
+            CREATE TABLE ticket_ai_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                body TEXT NOT NULL,
+                suggestion TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            );
         SQL;
 
         self::$pdo->exec($sql);
+    }
+
+    private static function ensureAiSchema(): void
+    {
+        $columns = self::$pdo->query('PRAGMA table_info(tickets)')->fetchAll();
+        $names = array_map(static fn (array $column): string => $column['name'], $columns);
+        if (!in_array('ai_outcome', $names, true)) {
+            self::$pdo->exec("ALTER TABLE tickets ADD COLUMN ai_outcome TEXT NOT NULL DEFAULT 'triagem'");
+        }
+
+        self::$pdo->exec(
+            "CREATE TABLE IF NOT EXISTS ticket_ai_messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ticket_id INTEGER NOT NULL,
+                role TEXT NOT NULL CHECK(role IN ('user', 'assistant')),
+                body TEXT NOT NULL,
+                suggestion TEXT,
+                created_at TEXT NOT NULL,
+                FOREIGN KEY (ticket_id) REFERENCES tickets(id) ON DELETE CASCADE
+            )"
+        );
     }
 
     private static function seed(): void

@@ -1,6 +1,8 @@
 export type Role = 'admin' | 'agente' | 'solicitante'
 export type Status = 'aberto' | 'em_andamento' | 'resolvido'
 export type Priority = 'baixa' | 'media' | 'alta'
+export type AiOutcome = 'triagem' | 'resolvido_ia' | 'escalado'
+export type AiSuggestion = 'continue' | 'resolved' | 'escalate'
 
 export interface User {
   id: number
@@ -19,6 +21,7 @@ export interface Ticket {
   description: string
   status: Status
   priority: Priority
+  ai_outcome: AiOutcome
   requester: string
   assignee: string | null
   requester_id: number
@@ -33,6 +36,7 @@ export interface TicketRow {
   description: string
   status: Status
   priority: Priority
+  ai_outcome: AiOutcome
   requester_id: number
   assignee_id: number | null
   created_at: string
@@ -45,6 +49,14 @@ export interface Comment {
   id: number
   body: string
   author: string
+  created_at: string
+}
+
+export interface AiMessage {
+  id: number
+  role: 'user' | 'assistant'
+  body: string
+  suggestion: AiSuggestion | null
   created_at: string
 }
 

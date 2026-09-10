@@ -237,16 +237,19 @@ a {
   font-family: "IBM Plex Mono", monospace;
 }
 
+.badge.triagem,
 .badge.aberto {
   background: #ffedd5;
   color: var(--accent);
 }
 
+.badge.escalado,
 .badge.em_andamento {
   background: #fef9c3;
   color: var(--warn);
 }
 
+.badge.resolvido_ia,
 .badge.resolvido {
   background: #ecfccb;
   color: var(--ok);
@@ -377,6 +380,79 @@ textarea {
 .empty {
   padding: 28px;
   color: var(--ink-soft);
+}
+
+.ai-chat {
+  margin: 24px 0 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #faf7f0;
+  padding: 16px;
+}
+
+.ai-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.ai-head h2 {
+  margin: 0 0 4px;
+}
+
+.ai-thread {
+  display: grid;
+  gap: 10px;
+  max-height: 360px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.ai-bubble {
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+}
+
+.ai-bubble.assistant {
+  background: #fff7ed;
+}
+
+.ai-bubble strong {
+  display: block;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+
+.ai-bubble p {
+  margin: 0;
+  white-space: pre-wrap;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.ai-compose {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.ai-compose textarea {
+  min-height: 72px;
+}
+
+.ai-quick,
+.ai-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn.glow {
+  box-shadow: 0 0 0 2px #fdba74;
 }
 
 @media (max-width: 900px) {

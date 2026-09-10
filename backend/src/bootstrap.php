@@ -34,5 +34,9 @@ $router->post('/api/tickets', [App\Controllers\TicketController::class, 'store']
 $router->get('/api/tickets/{id}', [App\Controllers\TicketController::class, 'show'], true);
 $router->patch('/api/tickets/{id}', [App\Controllers\TicketController::class, 'update'], true);
 $router->post('/api/tickets/{id}/comments', [App\Controllers\TicketController::class, 'comment'], true);
+$router->get('/api/tickets/{id}/ai', [App\Controllers\AiController::class, 'show'], true);
+$router->post('/api/tickets/{id}/ai', [App\Controllers\AiController::class, 'message'], true);
+$router->post('/api/tickets/{id}/ai/resolve', [App\Controllers\AiController::class, 'resolve'], true);
+$router->post('/api/tickets/{id}/ai/escalate', [App\Controllers\AiController::class, 'escalate'], true);
 
 $router->dispatch();

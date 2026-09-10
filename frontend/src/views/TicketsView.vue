@@ -31,6 +31,7 @@
           <th>Status</th>
           <th>Prioridade</th>
           <th>Responsável</th>
+          <th>Assistente</th>
         </tr>
       </thead>
       <tbody>
@@ -44,6 +45,7 @@
           <td><StatusBadge :value="ticket.status" /></td>
           <td><StatusBadge :value="ticket.priority" /></td>
           <td>{{ ticket.assignee || '—' }}</td>
+          <td><StatusBadge :value="ticket.ai_outcome || 'triagem'" :labels="aiLabels" /></td>
         </tr>
       </tbody>
     </table>
@@ -63,6 +65,11 @@ const statuses = [
   { value: 'em_andamento', label: 'Em andamento' },
   { value: 'resolvido', label: 'Resolvidos' },
 ]
+const aiLabels = {
+  triagem: 'em triagem',
+  resolvido_ia: 'resolveu',
+  escalado: 'escalou',
+}
 
 onMounted(() => tickets.fetchAll(status.value))
 watch(status, (value) => tickets.fetchAll(value))

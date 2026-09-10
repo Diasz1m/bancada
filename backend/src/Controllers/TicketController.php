@@ -116,6 +116,9 @@ final class TicketController
         ]);
 
         $created = $this->find((int) Database::pdo()->lastInsertId());
+        if ($created !== null) {
+            \App\Ai\Assistant::bootstrap($created);
+        }
         Http::json(['ticket' => $this->mapTicket($created)], 201);
     }
 
@@ -140,14 +143,19 @@ final class TicketController
             Http::error('Status inválido.', 422, ['status' => 'Status desconhecido.']);
         }
 
+        $tookOver = ($ticket['ai_outcome'] ?? 'triagem') === 'triagem'
+            && ($status !== 'aberto' || $assigneeId !== $ticket['assignee_id']);
+        $aiOutcome = $tookOver ? 'escalado' : ($ticket['ai_outcome'] ?? 'triagem');
+
         $stmt = Database::pdo()->prepare(
             'UPDATE tickets
-             SET status = :status, assignee_id = :assignee_id, updated_at = :updated_at
+             SET status = :status, assignee_id = :assignee_id, ai_outcome = :ai_outcome, updated_at = :updated_at
              WHERE id = :id'
         );
         $stmt->execute([
             'status' => $status,
             'assignee_id' => $assigneeId,
+            'ai_outcome' => $aiOutcome,
             'updated_at' => gmdate('c'),
             'id' => $ticket['id'],
         ]);
@@ -182,6 +190,16 @@ final class TicketController
         Http::json(['ok' => true], 201);
     }
 
+    public function findPublic(int $id): ?array
+    {
+        return $this->find($id);
+    }
+
+    public function mapPublic(?array $row): array
+    {
+        return $this->mapTicket($row);
+    }
+
     private function ticketSelect(): string
     {
         return 'SELECT t.*,
@@ -213,6 +231,9 @@ final class TicketController
             'description' => $row['description'],
             'status' => $row['status'],
             'priority' => $row['priority'],
+            'ai_outcome' => in_array($row['ai_outcome'] ?? '', ['triagem', 'resolvido_ia', 'escalado'], true)
+                ? $row['ai_outcome']
+                : 'triagem',
             'requester' => $row['requester_name'],
             'assignee' => $row['assignee_name'],
             'requester_id' => (int) $row['requester_id'],

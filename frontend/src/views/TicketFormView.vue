@@ -3,7 +3,9 @@
     <div class="page-head">
       <div>
         <h1>Novo chamado</h1>
-        <p class="muted">Validação 422 volta por campo — o mesmo contrato do FormRequest no Laravel.</p>
+        <p class="muted">
+          A assistente lê o título e a descrição e tenta um procedimento antes da fila humana.
+        </p>
       </div>
     </div>
 
@@ -27,7 +29,9 @@
         <textarea v-model="description" />
         <span v-if="errors.description" class="field-error">{{ errors.description }}</span>
       </label>
-      <button class="btn" :disabled="loading">{{ loading ? 'Enviando…' : 'Abrir chamado' }}</button>
+      <button class="btn" :disabled="loading">
+        {{ loading ? 'Abrindo…' : 'Abrir e consultar a assistente' }}
+      </button>
     </form>
   </div>
 </template>

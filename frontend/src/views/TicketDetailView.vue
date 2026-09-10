@@ -16,6 +16,8 @@
           {{ tickets.current.priority }}
         </p>
 
+        <AiChat :ticket-id="tickets.current.id" />
+
         <h2>Comentários</h2>
         <div class="comments">
           <p v-if="tickets.comments.length === 0" class="muted">Nenhum comentário ainda.</p>
@@ -37,7 +39,9 @@
 
       <aside class="card">
         <h2>Triagem</h2>
-        <p class="muted">Só agente/admin altera status — o PHP devolve 403 para o resto.</p>
+        <p class="muted">
+          A assistente atende primeiro. Agente/admin altera status — solicitante recebe 403.
+        </p>
         <label>
           Status
           <select v-model="status" :disabled="!auth.isAgent" @change="save">
@@ -55,6 +59,7 @@
           Atribuir a mim
         </button>
         <p class="muted">Responsável: {{ tickets.current.assignee || 'ninguém' }}</p>
+        <p class="muted">Assistente: {{ aiLabel }}</p>
         <p v-if="actionError" class="field-error">{{ actionError }}</p>
       </aside>
     </div>
@@ -63,11 +68,12 @@
 </template>
 
 <script setup>
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useTicketStore } from '../stores/tickets'
 import StatusBadge from '../components/StatusBadge.vue'
+import AiChat from '../components/AiChat.vue'
 
 const route = useRoute()
 const auth = useAuthStore()
@@ -75,6 +81,15 @@ const tickets = useTicketStore()
 const status = ref('aberto')
 const body = ref('')
 const actionError = ref('')
+
+const aiLabel = computed(() => {
+  const labels = {
+    triagem: 'tentando resolver',
+    resolvido_ia: 'resolveu o chamado',
+    escalado: 'passou para a fila',
+  }
+  return labels[tickets.current?.ai_outcome] || '—'
+})
 
 onMounted(() => load())
 watch(() => route.params.id, () => load())
