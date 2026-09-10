@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      - bancada-data:/app/data
+
+  api-node:
+    build:
+      context: ./backend-node
+      dockerfile: Dockerfile
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./backend-node:/app
+      - /app/node_modules
+      - bancada-node-data:/app/data
+    environment:
+      PORT: "8001"
+
+volumes:
+  bancada-data:
+  bancada-node-data:
