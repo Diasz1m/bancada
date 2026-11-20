@@ -31,8 +31,12 @@ app.post('/api/tickets', requireAuth, TicketController.store)
 app.get('/api/tickets/:id', requireAuth, TicketController.show)
 app.patch('/api/tickets/:id', requireAuth, TicketController.update)
 app.post('/api/tickets/:id/comments', requireAuth, TicketController.comment)
-app.get('/api/tickets/:id/ai', requireAuth, AiController.show)
-app.post('/api/tickets/:id/ai', requireAuth, AiController.message)
+app.get('/api/tickets/:id/ai', requireAuth, (req, res, next) => {
+  AiController.show(req, res).catch(next)
+})
+app.post('/api/tickets/:id/ai', requireAuth, (req, res, next) => {
+  AiController.message(req, res).catch(next)
+})
 app.post('/api/tickets/:id/ai/resolve', requireAuth, AiController.resolve)
 app.post('/api/tickets/:id/ai/escalate', requireAuth, AiController.escalate)
 

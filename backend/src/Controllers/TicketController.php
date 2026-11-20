@@ -116,9 +116,6 @@ final class TicketController
         ]);
 
         $created = $this->find((int) Database::pdo()->lastInsertId());
-        if ($created !== null) {
-            \App\Ai\Assistant::bootstrap($created);
-        }
         Http::json(['ticket' => $this->mapTicket($created)], 201);
     }
 

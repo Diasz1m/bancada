@@ -1,5 +1,4 @@
 import type { Request, Response } from 'express'
-import { bootstrapAi } from './aiController.js'
 import { Database } from '../database.js'
 import { fail, json, nowIso } from '../http.js'
 import { TICKET_SELECT, findTicket, mapTicket } from '../tickets.js'
@@ -109,9 +108,6 @@ export class TicketController {
       })
 
     const created = findTicket(Number(result.lastInsertRowid))
-    if (created !== null) {
-      bootstrapAi(created)
-    }
     json(res, { ticket: mapTicket(created) }, 201)
   }
 

@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express'
-import { Assistant } from '../ai/assistant.js'
+import { requestReply } from '../ai/openRouter.js'
 import { Database } from '../database.js'
 import { fail, json, nowIso } from '../http.js'
 import type { AiMessage, AiOutcome, AiSuggestion, TicketRow, User } from '../types.js'
@@ -8,13 +8,16 @@ import { findTicket, mapTicket } from '../tickets.js'
 const OUTCOMES: AiOutcome[] = ['triagem', 'resolvido_ia', 'escalado']
 
 export class AiController {
-  static show(req: Request, res: Response): void {
+  static async show(req: Request, res: Response): Promise<void> {
     const ticket = requireTicket(req)
-    const payload = hydrate(ticket)
-    json(res, payload)
+    if (isOpenForAi(ticket) && loadMessages(ticket.id).length === 0) {
+      assertCanChat(req.user!, ticket)
+      await generateReply(ticket, [], null)
+    }
+    json(res, snapshot(ticket.id))
   }
 
-  static message(req: Request, res: Response): void {
+  static async message(req: Request, res: Response): Promise<void> {
     const ticket = requireTicket(req)
     assertCanChat(req.user!, ticket)
 
@@ -27,12 +30,7 @@ export class AiController {
       fail('Dados inválidos.', 422, { message: 'Escreva uma mensagem.' })
     }
 
-    hydrate(ticket)
-    insertMessage(ticket.id, 'user', message, null)
-
-    const history = loadMessages(ticket.id).map((row) => ({ role: row.role, body: row.body }))
-    const reply = Assistant.reply(ticket.title, ticket.description, history.slice(0, -1), message)
-    insertMessage(ticket.id, 'assistant', reply.body, reply.suggestion)
+    await generateReply(ticket, loadMessages(ticket.id), message)
 
     json(res, snapshot(ticket.id), 201)
   }
@@ -76,14 +74,20 @@ export class AiController {
   }
 }
 
-export function bootstrapAi(ticket: TicketRow): void {
-  const existing = loadMessages(ticket.id)
-  if (existing.length > 0) {
-    return
-  }
-
-  const opening = Assistant.opening(ticket.title, ticket.description)
-  insertMessage(ticket.id, 'assistant', opening.body, opening.suggestion)
+async function generateReply(ticket: TicketRow, history: AiMessage[], message: string | null): Promise<void> {
+  const reply = await requestReply(ticket, history, message)
+  const db = Database.sqlite()
+  db.transaction(() => {
+    const current = findTicket(ticket.id)
+    const latest = db.prepare('SELECT MAX(id) AS id FROM ticket_ai_messages WHERE ticket_id = ?')
+      .get(ticket.id) as { id: number | null }
+    if (!current || !isOpenForAi(current) || latest.id !== (history.at(-1)?.id ?? null)) {
+      if (message === null) return
+      fail('O atendimento mudou. Atualize o chamado antes de enviar novamente.', 409)
+    }
+    if (message !== null) insertMessage(ticket.id, 'user', message, null)
+    insertMessage(ticket.id, 'assistant', reply.body, reply.suggestion)
+  }).immediate()
 }
 
 function requireTicket(req: Request): TicketRow {
@@ -103,13 +107,6 @@ function assertCanChat(user: User, ticket: TicketRow): void {
 
 function isOpenForAi(ticket: TicketRow): boolean {
   return ticket.status !== 'resolvido' && ticket.ai_outcome === 'triagem'
-}
-
-function hydrate(ticket: TicketRow): ReturnType<typeof snapshot> {
-  if (ticket.ai_outcome === 'triagem' && ticket.status !== 'resolvido') {
-    bootstrapAi(ticket)
-  }
-  return snapshot(ticket.id)
 }
 
 function snapshot(ticketId: number): {
