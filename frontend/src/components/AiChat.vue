@@ -10,8 +10,9 @@
 
     <div ref="scroller" class="ai-thread">
       <p v-if="loading && messages.length === 0" class="muted">A assistente está lendo o chamado…</p>
+      <TransitionGroup name="chat-message">
       <article
-        v-for="message in messages"
+        v-for="message in displayedMessages"
         :key="message.id"
         class="ai-bubble"
         :class="message.role"
@@ -19,11 +20,16 @@
         <strong>{{ message.role === 'assistant' ? 'Assistente Bancada' : 'Você' }}</strong>
         <p>{{ message.body }}</p>
       </article>
+      <article v-if="pendingMessage" key="thinking" class="ai-bubble assistant ai-thinking" role="status">
+        <strong>Assistente Bancada</strong>
+        <span>Respondendo<span class="ai-dots" aria-hidden="true"><i></i><i></i><i></i></span></span>
+      </article>
+      </TransitionGroup>
     </div>
 
     <p v-if="error" class="field-error">{{ error }}</p>
 
-    <form v-if="canChat" class="ai-compose" @submit.prevent="send">
+    <form v-if="canChat && !loading" class="ai-compose" @submit.prevent="send">
       <div class="ai-quick">
         <button type="button" class="chip" :disabled="sending" @click="sendPreset('Não funcionou')">
           Não funcionou
@@ -80,8 +86,12 @@ const draft = ref('')
 const sending = ref(false)
 const error = ref('')
 const scroller = ref(null)
+const pendingMessage = ref(null)
 
 const messages = computed(() => tickets.aiMessages)
+const displayedMessages = computed(() => pendingMessage.value
+  ? [...messages.value, { id: 'pending', role: 'user', body: pendingMessage.value }]
+  : messages.value)
 const suggested = computed(() => tickets.aiSuggestion)
 const outcome = computed(() => tickets.aiOutcome)
 const loading = computed(() => tickets.aiLoading)
@@ -97,7 +107,7 @@ const subtitle = computed(() => {
   if (outcome.value === 'resolvido_ia') return 'Chamado fechado pela assistente.'
   if (outcome.value === 'escalado') return 'Histórico ficou no chamado para o agente.'
   if (tickets.current?.status === 'resolvido') return 'Chamado já resolvido.'
-  return 'Primeiro atendimento automático, com procedimentos da TI.'
+  return 'Triagem inicial do chamado.'
 })
 
 const badgeLabel = computed(() => {
@@ -114,7 +124,7 @@ const badgeClass = computed(() => {
 
 onMounted(() => load())
 watch(() => props.ticketId, () => load())
-watch(messages, () => scrollToEnd(), { deep: true })
+watch(displayedMessages, () => scrollToEnd(), { deep: true })
 
 async function load() {
   error.value = ''
@@ -128,23 +138,27 @@ async function load() {
 async function send() {
   const text = draft.value.trim()
   if (!text || sending.value) return
-  await postMessage(text)
   draft.value = ''
+  if (!await postMessage(text)) draft.value = text
 }
 
 async function sendPreset(text) {
   if (sending.value) return
-  await postMessage(text)
+  if (!await postMessage(text)) draft.value = text
 }
 
 async function postMessage(text) {
   sending.value = true
+  pendingMessage.value = text
   error.value = ''
   try {
     await tickets.sendAi(props.ticketId, text)
+    return true
   } catch (err) {
     error.value = err.response?.data?.message || 'A assistente não respondeu.'
+    return false
   } finally {
+    pendingMessage.value = null
     sending.value = false
   }
 }

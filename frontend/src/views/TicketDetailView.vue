@@ -64,11 +64,12 @@
       </aside>
     </div>
   </div>
-  <p v-else-if="tickets.loading" class="muted">Carregando…</p>
+  <p v-else-if="loadError" class="field-error">{{ loadError }}</p>
+  <p v-else class="muted">Carregando…</p>
 </template>
 
 <script setup>
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onUnmounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { useTicketStore } from '../stores/tickets'
@@ -81,6 +82,7 @@ const tickets = useTicketStore()
 const status = ref('aberto')
 const body = ref('')
 const actionError = ref('')
+const loadError = ref('')
 
 const aiLabel = computed(() => {
   const labels = {
@@ -91,8 +93,15 @@ const aiLabel = computed(() => {
   return labels[tickets.current?.ai_outcome] || '—'
 })
 
-onMounted(() => load())
-watch(() => route.params.id, () => load())
+watch(() => route.params.id, (id) => {
+  if (!id) return
+  tickets.selectTicket(id)
+  body.value = ''
+  actionError.value = ''
+  loadError.value = ''
+  load(id)
+}, { immediate: true })
+onUnmounted(() => tickets.selectTicket(null))
 watch(
   () => tickets.current?.status,
   (value) => {
@@ -100,9 +109,14 @@ watch(
   },
 )
 
-async function load() {
-  await tickets.fetchOne(route.params.id)
-  status.value = tickets.current.status
+async function load(id) {
+  try {
+    await tickets.fetchOne(id)
+  } catch (err) {
+    if (String(route.params.id) === String(id)) {
+      loadError.value = err.response?.data?.message || 'Não foi possível abrir o chamado.'
+    }
+  }
 }
 
 async function save() {

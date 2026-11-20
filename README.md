@@ -28,6 +28,12 @@ Abra `http://localhost:5173`.
 | carlos@bancada.test | senha123 | solicitante (só abre e comenta) |
 | admin@bancada.test | senha123 | admin |
 
+## Chat com OpenRouter no PHP e no Node
+
+Copie `.env.example` para `.env` na raiz e preencha `OPENROUTER_API_KEY` com uma chave da sua conta OpenRouter. Execute `docker compose up -d --build api api-node` para aplicar a configuração. Ao rodar PHP diretamente, habilite a extensão cURL e defina a variável no ambiente do processo.
+
+Ao abrir o chat de um chamado em triagem sem histórico, a API consulta o modelo gratuito `nvidia/nemotron-3-ultra-550b-a55b:free` com o título e a descrição. O chat salva essa primeira resposta e usa até 20 mensagens anteriores nas próximas consultas. A chave fica no servidor. Os botões **Isso resolveu** e **Falar com um agente** confirmam a decisão do usuário.
+
 ## O que treinar neste código
 
 - Guard de rota + token no Pinia
@@ -41,12 +47,17 @@ Depois do MVP, recrie a mesma API em Laravel (migrations, Eloquent, FormRequest,
 ## API Node + TypeScript
 
 Mesmas rotas, mesmas regras e os mesmos usuários de teste. SQLite próprio em `backend-node/data/`.
+Use Node.js 22, a mesma versão utilizada pelo Docker. Com nvm:
 
 ```bash
 cd backend-node
+nvm install
+nvm use
 npm install
 npm run dev
 ```
+
+Para usar o chat ao rodar o Node fora do Docker, exporte `OPENROUTER_API_KEY` no terminal antes de iniciar a API.
 
 A API sobe em `http://localhost:8001`. No frontend, aponte o proxy:
 

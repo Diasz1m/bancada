@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Controllers;
 
 use App\Ai\Assistant;
+use App\Ai\OpenRouter;
 use App\Database;
 use App\Http;
 use PDO;
@@ -14,7 +15,12 @@ final class AiController
     public function show(array $params, ?array $user): void
     {
         $ticket = $this->requireTicket($params);
-        Http::json($this->hydrate($ticket));
+        $ticketId = (int) $ticket['id'];
+        if ($this->isOpenForAi($ticket) && !$this->loadMessages($ticketId)) {
+            $this->assertCanChat($user, $ticket);
+            $this->generateReply($ticket, [], null);
+        }
+        Http::json($this->snapshot($ticketId));
     }
 
     public function message(array $params, ?array $user): void
@@ -31,19 +37,50 @@ final class AiController
             Http::error('Dados inválidos.', 422, ['message' => 'Escreva uma mensagem.']);
         }
 
-        $this->hydrate($ticket);
-        Assistant::insertMessage((int) $ticket['id'], 'user', $message, null);
+        $ticketId = (int) $ticket['id'];
+        $this->generateReply($ticket, $this->loadMessages($ticketId), $message);
+        Http::json($this->snapshot($ticketId), 201);
+    }
 
-        $history = array_map(static fn (array $row): array => [
-            'role' => $row['role'],
-            'body' => $row['body'],
-        ], $this->loadMessages((int) $ticket['id']));
-        array_pop($history);
+    private function generateReply(array $ticket, array $history, ?string $message): void
+    {
+        $ticketId = (int) $ticket['id'];
+        try {
+            $reply = OpenRouter::reply($ticket, $history, $message);
+        } catch (\RuntimeException $error) {
+            Http::error($error->getMessage(), $error->getCode());
+        }
 
-        $reply = Assistant::reply((string) $ticket['title'], (string) $ticket['description'], $history, $message);
-        Assistant::insertMessage((int) $ticket['id'], 'assistant', $reply['body'], $reply['suggestion']);
+        $db = Database::pdo();
+        $db->beginTransaction();
+        try {
+            // Acquire the SQLite write lock and check the conversation used for this reply.
+            $guard = $db->prepare(
+                "UPDATE tickets SET ai_outcome = 'triagem'
+                 WHERE id = :id AND status != 'resolvido' AND ai_outcome = 'triagem'
+                 AND (SELECT COALESCE(MAX(id), 0) FROM ticket_ai_messages WHERE ticket_id = :id) = :last_id"
+            );
+            $guard->bindValue(':id', $ticketId, PDO::PARAM_INT);
+            $guard->bindValue(':last_id', end($history)['id'] ?? 0, PDO::PARAM_INT);
+            $guard->execute();
+            if ($guard->rowCount() === 0) {
+                $db->rollBack();
+                if ($message === null) {
+                    return;
+                }
+                Http::error('O atendimento mudou. Atualize o chamado antes de enviar novamente.', 409);
+            }
 
-        Http::json($this->snapshot((int) $ticket['id']), 201);
+            if ($message !== null) {
+                Assistant::insertMessage($ticketId, 'user', $message, null);
+            }
+            Assistant::insertMessage($ticketId, 'assistant', $reply['body'], $reply['suggestion']);
+            $db->commit();
+        } catch (\Throwable $error) {
+            $db->rollBack();
+            throw $error;
+        }
+
     }
 
     public function resolve(array $params, ?array $user): void
@@ -108,16 +145,6 @@ final class AiController
     {
         $outcome = $ticket['ai_outcome'] ?? 'triagem';
         return $ticket['status'] !== 'resolvido' && $outcome === 'triagem';
-    }
-
-    private function hydrate(array $ticket): array
-    {
-        $outcome = $ticket['ai_outcome'] ?? 'triagem';
-        if ($outcome === 'triagem' && $ticket['status'] !== 'resolvido') {
-            Assistant::bootstrap($ticket);
-        }
-
-        return $this->snapshot((int) $ticket['id']);
     }
 
     private function snapshot(int $ticketId): array

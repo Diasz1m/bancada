@@ -10,3 +10,4 @@ backend-node/data/*.sqlite-journal
 .DS_Store
 Thumbs.db
 *.log
+/.env

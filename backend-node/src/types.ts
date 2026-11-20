@@ -60,6 +60,12 @@ export interface AiMessage {
   created_at: string
 }
 
+export interface OpenRouterRequest {
+  model: string
+  messages: Array<{ role: 'system' | 'assistant' | 'user'; content: string }>
+  max_tokens: number
+}
+
 declare global {
   namespace Express {
     interface Request {
